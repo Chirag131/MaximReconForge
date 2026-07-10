@@ -197,29 +197,32 @@ function Terminal() {
   }, [lines]);
 
   return (
-    <div className="terminal">
-      <div className="terminal-top">
-        <div className="dot"></div>
-        <div className="dot"></div>
-        <div className="dot"></div>
+  <div className="w-full max-w-[920px] overflow-hidden rounded-[14px] border border-white/10 bg-[rgba(8,7,22,0.88)] shadow-[0_32px_90px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.03)] backdrop-blur-[18px]">
+    <div className="flex h-[44px] items-center gap-2 border-b border-white/10 bg-white/[0.035] px-[14px]">
+      <div className="h-[11px] w-[11px] rounded-full bg-[#ff5f57]" />
+      <div className="h-[11px] w-[11px] rounded-full bg-[#ffbd2e]" />
+      <div className="h-[11px] w-[11px] rounded-full bg-[#28c840]" />
 
-        <div className="terminal-title">
-          recon@maxim: ~/example.com
-        </div>
-      </div>
-
-      <div className="terminal-body" ref={terminalBodyRef}>
-        {lines.map((line) => (
-          <div
-            key={line.id}
-            className={`terminal-line ${line.className}`}
-          >
-            {line.text}
-          </div>
-        ))}
+      <div className="ml-3 font-['JetBrains_Mono'] text-[12px] text-white/40">
+        recon@maxim: ~/example.com
       </div>
     </div>
-  );
+
+    <div
+      ref={terminalBodyRef}
+      className="font-['JetBrains_Mono'] min-h-[360px] max-h-[460px] overflow-y-auto p-[22px] text-left text-[13px] leading-[1.45] tracking-[-0.15px] text-[#d7dce8]"
+    >
+      {lines.map((line) => (
+        <div
+          key={line.id}
+          className={`mb-[5px] min-h-[18px] whitespace-pre-wrap break-words ${line.className}`}
+        >
+          {line.text}
+        </div>
+      ))}
+    </div>
+  </div>
+);
 }
 
 export default Terminal;

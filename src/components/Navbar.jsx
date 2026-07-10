@@ -5,15 +5,13 @@ function Navbar() {
 
   useEffect(() => {
     const handleScroll = () => {
-      const opacity = Math.min(window.scrollY / 150, 1);
-      setScrollOpacity(opacity);
+      setScrollOpacity(Math.min(window.scrollY / 150, 1));
     };
 
+    handleScroll();
     window.addEventListener("scroll", handleScroll);
 
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const navbarStyle = {
@@ -23,17 +21,47 @@ function Navbar() {
   };
 
   return (
-    <nav style={navbarStyle}>
-      <div className="logo">
-        Maxim<span>ReconForge</span>
+    <nav
+      style={navbarStyle}
+      className="fixed top-0 left-0 z-[1000] flex h-[82px] w-full items-center justify-between border-b border-white/5 px-[70px] max-[1000px]:px-[36px] max-[900px]:h-[72px] max-[900px]:px-[24px]"
+    >
+      <div className="shrink-0 whitespace-nowrap text-[30px] leading-none font-extrabold tracking-[-1px] text-white select-none max-[900px]:text-[24px]">
+        Maxim<span className="text-[#7c5cff]">ReconForge</span>
       </div>
 
-      <div className="nav-links">
-        <a href="#product">Product</a>
-        <a href="#pipeline">Pipeline</a>
-        <a href="#docs">Docs</a>
-        <a href="#pricing">Pricing</a>
-        <a href="#scan" className="nav-btn">
+      <div className="flex items-center gap-[34px] text-[15px] font-semibold max-[900px]:hidden">
+        <a
+          href="#product"
+          className="whitespace-nowrap text-white/80 no-underline transition-colors hover:text-white"
+        >
+          Product
+        </a>
+
+        <a
+          href="#pipeline"
+          className="whitespace-nowrap text-white/80 no-underline transition-colors hover:text-white"
+        >
+          Pipeline
+        </a>
+
+        <a
+          href="#docs"
+          className="whitespace-nowrap text-white/80 no-underline transition-colors hover:text-white"
+        >
+          Docs
+        </a>
+
+        <a
+          href="#pricing"
+          className="whitespace-nowrap text-white/80 no-underline transition-colors hover:text-white"
+        >
+          Pricing
+        </a>
+
+        <a
+          href="#scan"
+          className="inline-flex h-[38px] shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-white px-[18px] text-[14px] leading-none font-bold text-[#181468] no-underline transition hover:-translate-y-px hover:bg-[#f5f7ff]"
+        >
           Start Scan
         </a>
       </div>
