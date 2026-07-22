@@ -1,0 +1,13 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+engagements/*/
+!engagements/.gitkeep
+certbot/conf/*
+!certbot/conf/.gitkeep
+certbot/www/*
+!certbot/www/.gitkeep
+*.log
+.DS_Store

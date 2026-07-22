@@ -1,7 +1,17 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function Navbar() {
   const [scrollOpacity, setScrollOpacity] = useState(0);
+  const { user, isAuthenticated, logout } = useAuth();
+
+  // No explicit navigate() here: ProtectedRoute already redirects to /login
+  // the instant isAuthenticated flips false, so an extra navigate("/") would
+  // race it and produce dueling replace() navigations.
+  const handleLogout = () => {
+    logout();
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -64,6 +74,34 @@ function Navbar() {
         >
           Start Scan
         </a>
+
+        {isAuthenticated ? (
+          <div className="flex items-center gap-3">
+            <span className="whitespace-nowrap text-white/60">{user?.email}</span>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="whitespace-nowrap text-white/80 transition-colors hover:text-white"
+            >
+              Log out
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Link
+              to="/login"
+              className="whitespace-nowrap text-white/80 no-underline transition-colors hover:text-white"
+            >
+              Log in
+            </Link>
+            <Link
+              to="/register"
+              className="whitespace-nowrap text-white/80 no-underline transition-colors hover:text-white"
+            >
+              Register
+            </Link>
+          </div>
+        )}
       </div>
     </nav>
   );
