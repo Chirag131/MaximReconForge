@@ -12,6 +12,7 @@ _Last updated: 2026-07-22_
 - `POST /auth/logout` — clears both cookies.
 - `GET /auth/me` — returns the current user from the access cookie; the frontend uses this on load to restore session state, since JS can't read httpOnly cookies directly.
 - `POST /engagements` is guarded by the same cookie-based dependency (`app/auth/security.py::get_current_user`) — it previously expected an `Authorization: Bearer` header, which would have silently broken once the frontend stopped sending one.
+- `backend/scripts/seed_dummy_user.py` — creates a local dev login (`dummyemail@gmail.com` / `password123`) directly via the DB session, skips if it already exists. Run with `python -m scripts.seed_dummy_user` from `backend/`.
 
 **Frontend** (`frontend/`): React + Vite + Tailwind, dark "recon" theme.
 - `src/services/authService.js` — thin fetch wrapper, always sends `credentials: "include"`.
