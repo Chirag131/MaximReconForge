@@ -28,9 +28,9 @@ This is a deliberate departure from frameworks that run an LLM through every pha
 
 | Role | Model | Notes |
 |---|---|---|
-| Vuln-Analysis Commander | Claude Sonnet 5 | Reasons over consolidated nmap/nuclei findings, proposes targeted ffuf/next-step actions. |
-| Exploitation Commander | Claude Sonnet 5 (default), Claude Opus 4.8 (escalation) | Escalates only for multi-step sqlmap/chained-exploit reasoning; most decisions don't need frontier depth. |
-| Reporting agent | Claude Opus 4.8 | One call per engagement — cost is a non-issue, it's the human-facing artifact. |
+| Vuln-Analysis Commander | openai/gpt-oss-120b (Groq) | Reasons over consolidated nmap/nuclei findings, proposes targeted ffuf/next-step actions. |
+| Exploitation Commander | openai/gpt-oss-120b (Groq) | Handles all decisions, including multi-step sqlmap/chained-exploit reasoning — single model, no escalation tier. |
+| Reporting agent | openai/gpt-oss-120b (Groq) | One call per engagement — produces the human-facing artifact. |
 | Aggregator / ScopeGuard / ResultParser | None (pure code) | Never LLM-driven, by design — these are the deterministic controls the rest of the system trusts. |
 
 
@@ -97,13 +97,13 @@ Raw target-controlled content (HTTP bodies, server banners, page titles) is neve
 
 ```
 Supervisor
- ├─ Vuln-Analysis subgraph : Commander(Sonnet 5) → ScopeGuard → Executor → ResultParser
+ ├─ Vuln-Analysis subgraph : Commander(gpt-oss-120b) → ScopeGuard → Executor → ResultParser
  │                            → loop back, until phase_complete() OR iteration/token cap
  │                            → Aggregator → Supervisor
- ├─ Exploitation subgraph  : Commander(Sonnet 5 / Opus 4.8 escalation) → ScopeGuard
+ ├─ Exploitation subgraph  : Commander(gpt-oss-120b) → ScopeGuard
  │                            → Executor → ResultParser → loop back,
  │                            until phase_complete() OR iteration/token cap → Aggregator → Supervisor
- └─ Reporting subgraph     : single call, Opus 4.8, reads whiteboard + RAG context → final_report.md
+ └─ Reporting subgraph     : single call, gpt-oss-120b, reads whiteboard + RAG context → final_report.md
 ```
 
 Abort-flag and ScopeGuard checks apply identically to every dispatch, same as the deterministic phases.
@@ -112,5 +112,4 @@ Abort-flag and ScopeGuard checks apply identically to every dispatch, same as th
 
 ## 10. Open Items
 
-- Exact escalation trigger for Sonnet → Opus inside Exploitation (currently: sqlmap-involved chains only).
 - Whether `phase_cap_exceeded` should trip the abort flag automatically or just annotate the report.

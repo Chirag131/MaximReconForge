@@ -31,8 +31,8 @@ Commander emits exactly one of:
 - `phase_complete(summary)` — the typed termination signal (§5).
 
 Model used for this decision:
-- Vuln-Analysis: Sonnet 5, always.
-- Exploitation: Sonnet 5 by default; escalates to Opus 4.8 specifically for multi-step sqlmap/chained-exploit reasoning steps.
+- Vuln-Analysis: openai/gpt-oss-120b (Groq), always.
+- Exploitation: openai/gpt-oss-120b (Groq), always — including multi-step sqlmap/chained-exploit reasoning steps.
 
 ---
 
@@ -75,20 +75,7 @@ Both write a `phase_cap_exceeded` audit event distinct from a normal `phase_comp
 
 ---
 
-## 7. Model Escalation Workflow (Exploitation only)
-
-```
-Commander (Sonnet 5) evaluates next action
-   → is this a multi-step sqlmap / chained-exploit reasoning decision?
-       → no  : proceed on Sonnet 5
-       → yes : re-issue this decision on Opus 4.8, proceed with its output
-```
-
-Escalation is per-decision, not per-phase — most of an Exploitation phase still runs on Sonnet 5.
-
----
-
-## 8. Loop Exit → Handoff
+## 7. Loop Exit → Handoff
 
 On `phase_complete()` or cap trip:
 1. Aggregator (deterministic, not an LLM) reads the Commander's private notes + structured findings for that phase.

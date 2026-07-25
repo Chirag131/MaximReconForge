@@ -6,9 +6,8 @@
 
 ## 1. Model Client Wiring
 
-- [ ] Anthropic API client configured for three model strings: Sonnet 5 (Vuln-Analysis, Exploitation default), Opus 4.8 (Reporting, Exploitation escalation).
-- [ ] Escalation function for Exploitation: per-decision check ("is this a multi-step sqlmap/chained-exploit reasoning step?") → re-issue on Opus 4.8 if true, else Sonnet 5.
-- [ ] No Fable/Mythos anywhere in this pipeline — confirm this explicitly in config, not just by omission, so a future default-model change doesn't silently reintroduce it.
+- [ ] Groq API client configured for a single model string: `openai/gpt-oss-120b`, used for all three LLM roles (Vuln-Analysis, Exploitation, Reporting).
+- [ ] No other provider/model reachable in this pipeline — confirm this explicitly in config, not just by omission, so a future default-model change doesn't silently reintroduce one.
 
 ## 2. Registry Additions (AI-specific)
 
@@ -53,7 +52,6 @@ For each Commander (Vuln-Analysis, Exploitation) and the Reporting agent:
 - [ ] **Prompt-injection test:** plant an instruction-like string in a mock HTTP response body/banner/title, confirm it's stored as delimited evidence and does not change Commander behavior.
 - [ ] **Cap trigger test:** force a Commander into a non-terminating loop (e.g. ambiguous findings with no clear next step), confirm iteration cap fires and `phase_cap_exceeded` is logged and later surfaced in the report.
 - [ ] **Token ceiling test:** same as above but budget-triggered rather than iteration-triggered.
-- [ ] **Escalation trigger test:** confirm a multi-step sqlmap scenario actually re-issues on Opus 4.8, and a simple exploitation decision stays on Sonnet 5 (i.e. the trigger condition isn't over- or under-firing).
 - [ ] **sqlmap gating test:** confirm the Exploitation Commander cannot select `run_sqlmap` when the engagement's `risky` toggle is off, regardless of prompt content.
 - [ ] **Audit completeness test:** run a full engagement, confirm every Commander action (including `phase_complete` and any rejections) has a corresponding hash-chained audit line.
 
@@ -61,6 +59,5 @@ For each Commander (Vuln-Analysis, Exploitation) and the Reporting agent:
 
 ## Open Items
 
-- Exact escalation trigger condition for Sonnet → Opus (currently: sqlmap-involved chains only) — confirm before Phase 5 build.
 - Data-retention policy for per-engagement Qdrant collections after report delivery.
 - Whether `phase_cap_exceeded` should auto-trip the abort flag for that engagement or just annotate the report.
