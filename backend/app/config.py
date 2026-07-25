@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     frontend_origin: str = "http://localhost:3000"
 
-    llm_provider: str = "anthropic"
+    llm_provider: str = "groq"
     llm_api_key: str = ""
 
     class Config:

@@ -119,7 +119,7 @@ QDRANT_PORT=6333
 FRONTEND_ORIGIN=https://your-frontend.vercel.app
 
 # --- LLM (placeholder, fill in later) ---
-LLM_PROVIDER=anthropic
+LLM_PROVIDER=groq
 LLM_API_KEY=
 ```
 
@@ -284,7 +284,7 @@ class Settings(BaseSettings):
 
     frontend_origin: str = "http://localhost:3000"
 
-    llm_provider: str = "anthropic"
+    llm_provider: str = "groq"
     llm_api_key: str = ""
 
     class Config:
