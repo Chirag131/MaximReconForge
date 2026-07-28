@@ -216,13 +216,18 @@ def parse_sqlmap_output(raw: str) -> SqlmapResult:
         result.vulnerable = True
     if "type:" in lower:
         for line in raw.splitlines():
-            if "Type:" in line:
-                result.injection_type = line.split("Type:", 1)[1].strip()
+            if "type:" in line.lower():
+                val = line.split("Type:", 1)[-1].split("type:", 1)[-1].strip()
+                # Split at period or next label if on single line
+                val = val.split(".")[0].strip()
+                result.injection_type = val
                 break
-    if "back-end DBMS:" in raw:
+    if "back-end dbms:" in lower:
         for line in raw.splitlines():
-            if "back-end DBMS:" in line:
-                result.dbms = line.split("back-end DBMS:", 1)[1].strip()
+            if "back-end dbms:" in line.lower():
+                val = line.split("DBMS:", 1)[-1].split("dbms:", 1)[-1].strip()
+                val = val.split(".")[0].strip()
+                result.dbms = val
                 break
     # All raw output is untrusted evidence
     result.evidence = wrap_untrusted_evidence(raw)
