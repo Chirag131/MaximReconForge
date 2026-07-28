@@ -1,22 +1,22 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     environment: str = "development"
 
     # --- Auth ---
-    jwt_secret_key: str
+    jwt_secret_key: str = "dev-secret-key-change-in-production-32-chars-min"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 30
     jwt_refresh_token_expire_days: int = 7
 
     # --- Database (Supabase Postgres) ---
-    database_url: str
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/maximreconforge"
     supabase_url: str = ""
     supabase_service_role_key: str = ""
 
     # --- Task queue ---
-    redis_url: str
+    redis_url: str = "redis://localhost:6379/0"
 
     # --- Frontend ---
     frontend_origin: str = "http://localhost:3000"
@@ -41,8 +41,11 @@ class Settings(BaseSettings):
     vuln_analysis_token_ceiling: int = 100_000
     exploitation_token_ceiling: int = 200_000
 
-    class Config:
-        env_file = ".env"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 settings = Settings()
