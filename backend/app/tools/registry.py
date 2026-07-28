@@ -14,7 +14,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 # ---------------------------------------------------------------------------
@@ -100,8 +100,7 @@ class ToolDefinition(BaseModel):
         default_factory=lambda: ["recon", "enumeration", "vuln_analysis", "exploitation"]
     )
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def to_openai_tool(self) -> dict[str, Any]:
         """Convert to OpenAI function-calling tool format."""
