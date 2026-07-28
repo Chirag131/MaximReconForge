@@ -27,9 +27,7 @@ services:
     build: ./backend
     env_file: .env
     depends_on:
-      - postgres
       - redis
-      - qdrant
     volumes:
       - ./engagements:/engagements
     expose:
@@ -40,9 +38,7 @@ services:
     build: ./worker
     env_file: .env
     depends_on:
-      - postgres
       - redis
-      - qdrant
     volumes:
       - ./engagements:/engagements
     user: "1000:1000"       # non-root
@@ -56,29 +52,8 @@ services:
           memory: 1g
     restart: unless-stopped
 
-  postgres:
-    image: postgres:16-alpine
-    env_file: .env
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    expose:
-      - "5432"
-    restart: unless-stopped
-
   redis:
     image: redis:7-alpine
     expose:
       - "6379"
     restart: unless-stopped
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    volumes:
-      - qdrant_data:/qdrant/storage
-    expose:
-      - "6333"
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-  qdrant_data:
