@@ -19,7 +19,10 @@ logger = logging.getLogger(__name__)
 class ContextStore:
     """Per-engagement context directory manager."""
 
-    def __init__(self, base_dir: str = "/engagements") -> None:
+    def __init__(self, base_dir: str | None = None) -> None:
+        import os
+        if base_dir is None:
+            base_dir = os.environ.get("ENGAGEMENTS_DIR") or str(Path(__file__).resolve().parent.parent.parent.parent / "engagements")
         self.base_dir = Path(base_dir)
 
     def get_engagement_dir(self, engagement_id: str) -> Path:
