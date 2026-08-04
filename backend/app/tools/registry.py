@@ -43,10 +43,14 @@ class NaabuInput(BaseModel):
 
 
 class NmapInput(BaseModel):
-    """Service/version fingerprinting."""
+    """Service/version fingerprinting.
+
+    Nmap flags are fixed (``-sV -sC``) and hardcoded in the worker executor —
+    they are deliberately not exposed as a Commander-controllable field, so an
+    LLM can never influence the nmap invocation beyond target and ports.
+    """
     target: str = Field(..., description="Hostname or IP to scan")
     ports: str = Field(..., description="Comma-separated ports from naabu output")
-    flags: str = Field(default="-sV -sC", description="Nmap flags (validated, never freeform)")
 
 
 class NucleiInput(BaseModel):

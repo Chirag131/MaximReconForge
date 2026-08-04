@@ -154,36 +154,59 @@ class ScopeGuard:
         return False
 
 
+# Map single-target tools to the argument that holds their target.
+_SINGLE_TARGET_FIELDS = {
+    "run_subfinder": "domain",
+    "run_amass": "domain",
+    "run_naabu": "target",
+    "run_nmap": "target",
+    "run_nuclei": "target",
+    "run_ffuf": "target_url",
+    "run_sqlmap": "target_url",
+}
+
+# Tools carrying a list of targets, all of which must be validated.
+_LIST_TARGET_FIELDS = {
+    "run_httpx": "targets",
+}
+
+# Tools with no external target to validate.
+_NO_TARGET_TOOLS = ("phase_complete", "search_whiteboard")
+
+
+def extract_targets_from_tool_call(
+    tool_name: str, arguments: dict[str, Any]
+) -> list[str]:
+    """Extract every target value from a tool call's arguments.
+
+    Returns all targets so ScopeGuard can validate the whole set — a list-based
+    tool like run_httpx must never pass validation on its first entry while
+    later, out-of-scope entries slip through. Returns an empty list for tools
+    with no external target (e.g. phase_complete, search_whiteboard).
+    """
+    if tool_name in _NO_TARGET_TOOLS:
+        return []
+
+    list_field = _LIST_TARGET_FIELDS.get(tool_name)
+    if list_field is not None:
+        targets = arguments.get(list_field, []) or []
+        return [str(t) for t in targets if t]
+
+    field = _SINGLE_TARGET_FIELDS.get(tool_name)
+    if field is None:
+        return []
+    value = arguments.get(field)
+    return [str(value)] if value else []
+
+
 def extract_target_from_tool_call(
     tool_name: str, arguments: dict[str, Any]
 ) -> str | None:
-    """Extract the target value from a tool call's arguments.
+    """Extract a single target value from a tool call's arguments.
 
-    Returns None for tools that don't have a target to validate
-    (e.g. phase_complete, search_whiteboard).
+    Backwards-compatible helper. For scope enforcement prefer
+    ``extract_targets_from_tool_call``, which returns every target so no entry
+    in a multi-target call goes unchecked.
     """
-    # Tools with no external target
-    if tool_name in ("phase_complete", "search_whiteboard"):
-        return None
-
-    # Map tool name to the argument that contains the target
-    target_fields = {
-        "run_subfinder": "domain",
-        "run_amass": "domain",
-        "run_httpx": None,  # list of targets, handled separately
-        "run_naabu": "target",
-        "run_nmap": "target",
-        "run_nuclei": "target",
-        "run_ffuf": "target_url",
-        "run_sqlmap": "target_url",
-    }
-
-    field = target_fields.get(tool_name)
-    if field is None:
-        # httpx: check each target in the list
-        if tool_name == "run_httpx":
-            targets = arguments.get("targets", [])
-            return targets[0] if targets else None
-        return None
-
-    return arguments.get(field)
+    targets = extract_targets_from_tool_call(tool_name, arguments)
+    return targets[0] if targets else None

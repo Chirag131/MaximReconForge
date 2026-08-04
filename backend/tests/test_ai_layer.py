@@ -1,5 +1,10 @@
 import pytest
-from app.core.scope_guard import ScopeGuard, ScopeGuardRejection, extract_target_from_tool_call
+from app.core.scope_guard import (
+    ScopeGuard,
+    ScopeGuardRejection,
+    extract_target_from_tool_call,
+    extract_targets_from_tool_call,
+)
 from app.tools.registry import (
     TOOL_REGISTRY,
     get_tools_for_phase,
@@ -69,3 +74,35 @@ def test_extract_target_from_tool_call():
 
     # phase_complete has no target
     assert extract_target_from_tool_call("phase_complete", {"summary": "done"}) is None
+
+
+def test_extract_targets_returns_every_httpx_target():
+    # run_httpx carries a list — ALL entries must be returned so ScopeGuard
+    # can validate each one, not just the first.
+    targets = extract_targets_from_tool_call(
+        "run_httpx",
+        {"targets": ["a.example.com", "b.example.com", "evil.com"]},
+    )
+    assert targets == ["a.example.com", "b.example.com", "evil.com"]
+
+    # No-target and single-target tools still behave.
+    assert extract_targets_from_tool_call("phase_complete", {"summary": "x"}) == []
+    assert extract_targets_from_tool_call("run_naabu", {"target": "example.com"}) == ["example.com"]
+
+
+def test_scope_guard_rejects_when_any_httpx_target_out_of_scope():
+    # A multi-target httpx call must be rejected if EVEN ONE target is out of
+    # scope — validation passing on the first entry is a scope-bypass bug.
+    scope = [{"asset_type": "subdomain", "value": "example.com"}]
+    guard = ScopeGuard(scope)
+    targets = extract_targets_from_tool_call(
+        "run_httpx",
+        {"targets": ["www.example.com", "evil.com"]},
+    )
+    rejected = False
+    for t in targets:
+        try:
+            guard.check(t)
+        except ScopeGuardRejection:
+            rejected = True
+    assert rejected, "out-of-scope target in the list was not rejected"

@@ -7,7 +7,23 @@ if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
 import pytest
-from worker.runner.executor import build_cli_command
+from worker.runner.executor import build_cli_command, _truncate
+
+
+def test_truncate_never_exceeds_cap():
+    marker = b"\n[STDOUT TRUNCATED]"
+    cap = 100
+    data = b"x" * 500
+    out = _truncate(data, cap, marker)
+    # The whole payload (data slice + marker) must fit within the cap.
+    assert len(out) <= cap
+    assert out.endswith(marker)
+
+
+def test_truncate_leaves_small_output_untouched():
+    marker = b"\n[STDERR TRUNCATED]"
+    data = b"short output"
+    assert _truncate(data, 1000, marker) == data
 
 
 def test_build_cli_command_subfinder():

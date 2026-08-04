@@ -83,16 +83,17 @@ EVIDENCE_DELIMITER = "--- BEGIN UNTRUSTED TARGET EVIDENCE ---"
 EVIDENCE_END = "--- END UNTRUSTED TARGET EVIDENCE ---"
 
 
-def wrap_untrusted_evidence(raw_text: str) -> str:
+def wrap_untrusted_evidence(raw_text: str, max_len: int = 4096) -> str:
     """Wrap raw target-controlled text in explicit delimiters.
 
     This is the structural prompt-injection defense: any free text from
     the target (HTTP bodies, banners, page titles) is wrapped so the
     Commander's system prompt can instruct it to treat this block as
     inert data, never as directives.
+
+    ``max_len`` caps the wrapped payload to prevent context overflow; pass a
+    larger value when wrapping an aggregated findings dump that must stay whole.
     """
-    # Truncate extremely long evidence to prevent context overflow
-    max_len = 4096
     if len(raw_text) > max_len:
         raw_text = raw_text[:max_len] + f"\n[TRUNCATED — {len(raw_text)} chars total]"
     return f"{EVIDENCE_DELIMITER}\n{raw_text}\n{EVIDENCE_END}"
@@ -120,10 +121,14 @@ def parse_httpx_output(raw: str) -> HttpxResult:
     for line in raw.strip().splitlines():
         try:
             data = json.loads(line)
+            # The page title is target-controlled free text. Wrap it as
+            # untrusted evidence so it can never be surfaced to a Commander
+            # prompt as an instruction (prompt-injection boundary).
+            title = data.get("title", "")
             hosts.append({
                 "url": data.get("url", ""),
                 "status_code": data.get("status_code", 0),
-                "title": data.get("title", ""),  # note: title is target-controlled
+                "title": wrap_untrusted_evidence(title) if title else "",
                 "tech": data.get("tech", []),
                 "content_length": data.get("content_length", 0),
             })

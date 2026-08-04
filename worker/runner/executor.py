@@ -30,6 +30,14 @@ class ExecutionResult:
     error: str | None = None
 
 
+def _truncate(data: bytes, cap: int, marker: bytes) -> bytes:
+    """Cap ``data`` to at most ``cap`` bytes, reserving room for ``marker``."""
+    if len(data) <= cap:
+        return data
+    keep = max(cap - len(marker), 0)
+    return data[:keep] + marker
+
+
 def build_cli_command(tool_name: str, params: dict[str, Any]) -> list[str]:
     """Map tool_name and validated Pydantic params to a safe argv command list."""
     if tool_name == "run_subfinder":
@@ -137,7 +145,9 @@ async def execute_tool_call(
             error=f"Command build error: {exc}",
         )
 
-    logger.info("Executing tool command: %s", " ".join(cmd))
+    # Log only the tool name and argument count — never the full argv, which
+    # can contain sensitive data (e.g. sqlmap --data with session tokens).
+    logger.info("Executing tool: %s (%d args)", tool_name, max(len(cmd) - 1, 0))
 
     try:
         process = await asyncio.create_subprocess_exec(
@@ -184,17 +194,24 @@ async def execute_tool_call(
             error=f"Subprocess error: {exc}",
         )
 
-    # Truncate if output exceeds size cap
-    if len(stdout_bytes) > output_cap_bytes:
-        stdout_bytes = stdout_bytes[:output_cap_bytes] + b"\n[STDOUT TRUNCATED]"
-    if len(stderr_bytes) > output_cap_bytes:
-        stderr_bytes = stderr_bytes[:output_cap_bytes] + b"\n[STDERR TRUNCATED]"
+    # Truncate if output exceeds size cap. The truncation marker is counted
+    # against the cap so the returned payload never exceeds output_cap_bytes.
+    stdout_bytes = _truncate(stdout_bytes, output_cap_bytes, b"\n[STDOUT TRUNCATED]")
+    stderr_bytes = _truncate(stderr_bytes, output_cap_bytes, b"\n[STDERR TRUNCATED]")
 
     stdout_str = stdout_bytes.decode("utf-8", errors="replace")
     stderr_str = stderr_bytes.decode("utf-8", errors="replace")
 
-    # Compute result SHA256 hash for audit chain
-    result_hash = hashlib.sha256(stdout_bytes).hexdigest()
+    # Compute result SHA256 over stdout + stderr + exit code so the hash is a
+    # stable audit anchor for both success and failure cases (some tools emit
+    # their meaningful output on stderr, or produce nothing on stdout on error).
+    hasher = hashlib.sha256()
+    hasher.update(stdout_bytes)
+    hasher.update(b"\x1e")  # record separator between streams
+    hasher.update(stderr_bytes)
+    hasher.update(b"\x1e")
+    hasher.update(str(process.returncode).encode())
+    result_hash = hasher.hexdigest()
 
     return ExecutionResult(
         tool_name=tool_name,

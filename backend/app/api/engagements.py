@@ -67,11 +67,15 @@ async def get_report(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    stmt = select(Engagement).where(Engagement.id == engagement_id)
+    stmt = select(Engagement).where(
+        Engagement.id == engagement_id,
+        Engagement.created_by == current_user.id,
+    )
     res = await db.execute(stmt)
     engagement = res.scalar_one_or_none()
 
     if not engagement:
+        # 404 (not 403) so we don't leak the existence of other users' engagements.
         raise HTTPException(status_code=404, detail="Engagement not found")
 
     store = ContextStore()
@@ -98,11 +102,15 @@ async def abort_engagement(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    stmt = select(Engagement).where(Engagement.id == engagement_id)
+    stmt = select(Engagement).where(
+        Engagement.id == engagement_id,
+        Engagement.created_by == current_user.id,
+    )
     res = await db.execute(stmt)
     engagement = res.scalar_one_or_none()
 
     if not engagement:
+        # 404 (not 403) so we don't leak the existence of other users' engagements.
         raise HTTPException(status_code=404, detail="Engagement not found")
 
     engagement.status = "aborted"

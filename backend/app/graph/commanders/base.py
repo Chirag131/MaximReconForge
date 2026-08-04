@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from app.config import settings
-from app.core.scope_guard import ScopeGuard, extract_target_from_tool_call, ScopeGuardRejection
+from app.core.scope_guard import ScopeGuard, extract_targets_from_tool_call, ScopeGuardRejection
 from app.llm.client import LLMClient, LLMResponse, ToolCallRequest
 from app.tools.registry import get_openai_tools_for_phase, validate_tool_call
 
@@ -89,12 +89,14 @@ class BaseCommander:
         except ValueError as exc:
             return False, f"Schema validation error: {exc}"
 
-        # 2. Extract target and validate against ScopeGuard
-        target = extract_target_from_tool_call(tool_call.tool_name, tool_call.arguments)
-        if target:
+        # 2. Extract every target and validate each against ScopeGuard. All
+        #    targets in a multi-target call (e.g. run_httpx) must be in scope —
+        #    a single out-of-scope entry rejects the whole proposal.
+        targets = extract_targets_from_tool_call(tool_call.tool_name, tool_call.arguments)
+        for target in targets:
             try:
                 self.scope_guard.check(target)
             except ScopeGuardRejection as exc:
-                return False, f"ScopeGuard rejected target: {exc.reason}"
+                return False, f"ScopeGuard rejected target '{target}': {exc.reason}"
 
         return True, ""

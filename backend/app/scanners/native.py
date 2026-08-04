@@ -513,10 +513,14 @@ async def run_full_scan(domain: str) -> list[dict[str, Any]]:
     """Run all scan modules and return aggregated findings."""
     all_findings: list[dict[str, Any]] = []
 
-    # Resolve target IP for port scanning
+    # Resolve target IP for port scanning. Use the event loop's async resolver
+    # instead of the blocking socket.gethostbyname(), which would stall the
+    # loop on slow DNS (violates the 'no blocking calls in async nodes' rule).
+    loop = asyncio.get_running_loop()
     try:
-        target_ip = socket.gethostbyname(domain)
-    except socket.gaierror:
+        addrinfo = await loop.getaddrinfo(domain, None, family=socket.AF_INET)
+        target_ip = addrinfo[0][4][0] if addrinfo else domain
+    except (socket.gaierror, OSError):
         target_ip = domain
 
     logger.info("[SCAN] Phase 1/5: DNS Enumeration")
