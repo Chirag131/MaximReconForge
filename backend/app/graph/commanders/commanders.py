@@ -71,6 +71,7 @@ class ReportingAgent:
             engagement_id=engagement_id,
             target_domain=target_domain,
         )
+        self.token_usage = 0
 
     async def generate_report(self, whiteboard_context: str) -> str:
         from app.llm.client import LLMClient
@@ -81,4 +82,5 @@ class ReportingAgent:
             {"role": "user", "content": f"Shared Whiteboard & Findings Summary:\n\n{whiteboard_context}"},
         ]
         res = await client.chat(messages=messages, role="reporting")
+        self.token_usage = res.usage.get("total_tokens", 0)
         return res.content or "# Report Generation Failed\nNo output produced."

@@ -1,0 +1,233 @@
+@Copilot commented on this pull request.
+
+🟡 Not ready to approve
+It introduces multiple security- and architecture-critical issues (scope validation gaps, missing authorization checks, non-deterministic tool packaging, and injection-boundary breaks) that should be addressed before approval.
+
+Once you've addressed the issues Copilot identified, you can request another Copilot review.
+
+This review doesn't count toward merge requirements. Sign up for the private preview to control whether Copilot approvals count.
+
+Pull request overview
+This PR establishes the initial “AI layer” + tool-execution scaffolding for MaximReconForge: a LangGraph supervisor routing through phases, Commander agents backed by an LLM client, a Pydantic tool registry with parsers and scope enforcement, and a sandboxed worker executor/container packaging. It also adds supporting docs, configuration, and tests while shifting vector search toward pgvector/Supabase.
+
+Changes:
+
+Add LangGraph supervisor graph + phase nodes, Commander agents/prompts, and an LLM client abstraction (Groq via OpenAI-compatible SDK).
+Introduce a Pydantic tool registry + result parsers, ScopeGuard enforcement utilities, and pgvector-backed embedding/search helpers.
+Implement a worker-side subprocess executor and install core scanning binaries into the worker image; add docs/tests/CLI scaffolding.
+File summaries
+File	Description
+worker/runner/main.py	ARQ worker entrypoint with tool job handler scaffold.
+worker/runner/executor.py	Subprocess-based whitelisted tool executor + CLI argv builder.
+worker/Dockerfile	Worker image now installs scanners and Go toolchain.
+PROGRESS.md	Updated progress tracking to reflect AI-layer/tooling work.
+docs/MaximReconForge_Workflow_Complete.md	Adds end-to-end workflow documentation.
+docs/MaximReconForge_Workflow_AI.md	Adds AI-loop-only workflow documentation.
+docs/MaximReconForge_ImplementationPlan_Complete.md	Adds phased implementation checklist (full system).
+docs/MaximReconForge_ImplementationPlan_AI.md	Adds phased implementation checklist (AI layer only).
+docs/MaximReconForge_Implementation.md	Adds consolidated backend + AI implementation plan doc.
+docs/MaximReconForge_Architecture_Complete.md	Adds complete architecture overview doc.
+docs/MaximReconForge_Architecture_AI.md	Adds AI-architecture-only doc.
+docker-compose.yml	Removes local postgres/qdrant services and simplifies dependencies.
+backend/tests/test_scope_validator.py	Adds scope validator unit tests.
+backend/tests/test_parsers.py	Adds tool output parser unit tests.
+backend/tests/test_graph_supervisor.py	Adds supervisor graph assembly/execution tests.
+backend/tests/test_executor.py	Adds worker executor command builder tests.
+backend/tests/test_context_store.py	Adds ContextStore/Aggregator tests.
+backend/tests/test_commanders.py	Adds Commander init/validation/gating tests.
+backend/tests/test_cli.py	Adds CLI argument parsing test.
+backend/tests/test_api_engagements.py	Adds ContextStore report path test.
+backend/tests/test_ai_layer.py	Adds ScopeGuard/tool registry/phase_complete tests.
+backend/run_cli.py	Adds a local CLI runner to drive the supervisor workflow.
+backend/requirements.txt	Expands dependencies for LLM/Supabase/orchestration.
+backend/app/vector/qdrant_client.py	Removes qdrant client stub.
+backend/app/vector/embeddings.py	Adds pgvector embedding storage + similarity search helpers.
+backend/app/tools/registry.py	Implements tool registry schemas, phase filtering, validation.
+backend/app/tools/parsers.py	Implements parsers + evidence wrapping boundary utilities.
+backend/app/scanners/native.py	Adds Python-native scanner module used by phase nodes.
+backend/app/scanners/init.py	Initializes scanners package.
+backend/app/llm/models.py	Adds provider/model constants + role→model mapping.
+backend/app/llm/client.py	Implements async LLM client wrapper + tool call parsing/fallback mode.
+backend/app/llm/init.py	Initializes LLM package.
+backend/app/graph/supervisor.py	Implements LangGraph supervisor workflow wiring.
+backend/app/graph/state.py	Defines engagement state schema for the supervisor graph.
+backend/app/graph/prompts/system_prompts.py	Adds system prompt templates for Commanders/Reporting agent.
+backend/app/graph/prompts/init.py	Initializes prompts package.
+backend/app/graph/nodes.py	Implements phase nodes (recon/enumeration/commanders/reporting).
+backend/app/graph/commanders/commanders.py	Adds VulnAnalysis/Exploitation Commander implementations + Reporting agent wrapper.
+backend/app/graph/commanders/base.py	Adds BaseCommander loop, tool filtering, and proposal validation helpers.
+backend/app/graph/commanders/init.py	Initializes commanders package.
+backend/app/core/scope_guard.py	Adds deterministic scope enforcement + target extraction helper.
+backend/app/core/audit.py	Adds DB-backed audit logging helper respecting DB-triggered hash chain.
+backend/app/context_store/store.py	Adds ContextStore + Aggregator whiteboard writer.
+backend/app/config.py	Expands settings for Supabase/Groq/embeddings/circuit breakers.
+backend/app/api/engagements.py	Implements report retrieval + abort endpoints.
+AGENTS.md	Adds repository “non-negotiable constraints” and working context.
+.env.example	Updates env template for Supabase/Groq/embeddings/circuit breakers.
+Review details
+Files reviewed: 47/47 changed files
+Comments generated: 15
+Review effort level: Lite
+We're testing this review assessment. Please use 👍 or 👎 to tell us if it's correct.
+
+In worker/runner/executor.py:
+
+> +    # Truncate if output exceeds size cap
++    if len(stdout_bytes) > output_cap_bytes:
++        stdout_bytes = stdout_bytes[:output_cap_bytes] + b"\n[STDOUT TRUNCATED]"
++    if len(stderr_bytes) > output_cap_bytes:
++        stderr_bytes = stderr_bytes[:output_cap_bytes] + b"\n[STDERR TRUNCATED]"
++
+The output cap truncation currently slices to output_cap_bytes and then appends a truncation marker, which can exceed the configured cap. This defeats the purpose of the cap and can cause oversized payloads when returning results to the backend.
+
+In worker/runner/executor.py:
+
+> +    # Compute result SHA256 hash for audit chain
++    result_hash = hashlib.sha256(stdout_bytes).hexdigest()
++
+result_hash is computed from stdout only. If stderr contains the meaningful output (or stdout is empty on failures), audit correlation becomes unreliable. Hashing stdout+stderr (+ exit code) makes the result_hash stable for both success and failure cases.
+
+In worker/runner/executor.py:
+
+> +        ExecutionResult containing exit code, stdout, stderr, and SHA256 hash.
++    """
++    try:
++        cmd = build_cli_command(tool_name, params)
++    except Exception as exc:
++        return ExecutionResult(
++            tool_name=tool_name,
++            success=False,
++            exit_code=-1,
++            stdout="",
++            stderr="",
++            result_hash="",
++            error=f"Command build error: {exc}",
++        )
++
++    logger.info("Executing tool command: %s", " ".join(cmd))
+Logging the full command line can leak sensitive data into logs (e.g., sqlmap --data may include credentials/session tokens). Consider logging only the tool_name (and maybe a small, redacted subset of params) rather than the full argv.
+
+In worker/Dockerfile:
+
+> +RUN go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest \
++ && go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest \
++ && go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu/main-executable@latest \
++ && go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest \
++ && go install -v github.com/ffuf/ffuf/v2@latest
+This Dockerfile installs Go-based tools using @latest, which makes builds non-reproducible and can unexpectedly break when upstream releases change. Pin versions (or use build args) so the worker image is deterministic.
+
+In worker/Dockerfile:
+
+> +RUN go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest \
++ && go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest \
++ && go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu/main-executable@latest \
++ && go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest \
++ && go install -v github.com/ffuf/ffuf/v2@latest
+The worker executor supports run_amass and run_sqlmap, but the worker image doesn't install amass or sqlmap. This will cause FileNotFoundError at runtime for those tool calls. Either install these binaries in the image (with pinned versions) or remove/disable these tools from the worker until they're packaged.
+
+In backend/app/graph/nodes.py:
+
+> +async def recon_node(state: EngagementState) -> dict[str, Any]:
++    """Recon phase — runs Python-native scanners against the target domain.
++
++    Performs DNS enumeration, subdomain discovery, TCP port scanning,
++    HTTP security header analysis, TLS certificate inspection, and
++    sensitive path probing. All findings are written to the whiteboard.
++    """
++    logger.info("Executing Recon phase for %s", state["engagement_id"])
++    domain = state["target_domain"]
++
++    # Build scope entries
++    scope = [
++        {"asset_type": "subdomain", "value": domain},
++        {"asset_type": "url", "value": f"https://{domain}"},
++    ]
++
++    # Run the actual native scanner
++    logger.info("[RECON] Starting native scan against %s ...", domain)
++    findings = await run_full_scan(domain)
++
+Recon is implemented here as a Python-native scanner (DNS/ports/headers/TLS/path probing) via run_full_scan(), but the repo’s non-negotiable constraint defines Recon/Enumeration as fixed external-tool pipelines (subfinder+amass→httpx→naabu / nmap→nuclei). This also collapses Enumeration into a no-op pass-through. Align the phase nodes with the defined pipeline (and keep the native scanner limited to local CLI mode if desired). (See AGENTS.md:43-45.)
+
+In backend/app/graph/nodes.py:
+
+> +    context = (
++        f"Whiteboard Summary:\n{summary}\n\n"
++        f"Recorded Findings ({len(findings)} items):\n"
++        f"{json.dumps(findings, default=str, indent=2)}"
++    )
+The LLM is given a raw JSON dump of all findings. Those findings can include target-controlled free text (e.g., HTTP titles/snippets/headers from the native scanner), but they are not wrapped in the UNTRUSTED TARGET EVIDENCE delimiters that the system prompt relies on. This weakens the prompt-injection boundary described in AGENTS.md and the prompt templates.
+
+In backend/app/tools/parsers.py:
+
+> +            hosts.append({
++                "url": data.get("url", ""),
++                "status_code": data.get("status_code", 0),
++                "title": data.get("title", ""),  # note: title is target-controlled
++                "tech": data.get("tech", []),
++                "content_length": data.get("content_length", 0),
++            })
+httpx titles are explicitly noted as target-controlled, but they are stored verbatim in the parsed output. If these values are later surfaced to a Commander prompt, they should be wrapped as untrusted evidence to preserve the prompt-injection boundary.
+
+In backend/app/vector/embeddings.py:
+
+> +    if settings.voyageai_api_key:
++        try:
++            import voyageai
++            vo = voyageai.Client(api_key=settings.voyageai_api_key)
++            res = vo.embed([text_content], model=settings.embedding_model)
++            return res.embeddings[0]
+generate_embedding() attempts to import and use the voyageai Python client when VOYAGEAI_API_KEY is set, but voyageai is not listed in backend/requirements.txt. This will raise ModuleNotFoundError in the first real embedding run.
+
+In backend/app/config.py:
+
+> +    # --- Auth ---
++    jwt_secret_key: str = "dev-secret-key-change-in-production-32-chars-min"
+     jwt_algorithm: str = "HS256"
+jwt_secret_key has a hardcoded default value. If this ever ships to a non-dev environment without an override, all JWTs become trivially forgeable. Make the secret required (no default) so startup fails fast when it’s not configured.
+
+In backend/app/tools/registry.py:
+
+> +class NmapInput(BaseModel):
++    """Service/version fingerprinting."""
++    target: str = Field(..., description="Hostname or IP to scan")
++    ports: str = Field(..., description="Comma-separated ports from naabu output")
++    flags: str = Field(default="-sV -sC", description="Nmap flags (validated, never freeform)")
++
+NmapInput exposes a flags field, but the worker executor currently hardcodes nmap flags and ignores this parameter. Leaving an unused field in the tool schema is confusing for tool-call validation and for the Commander. Either implement a safe allowlist for flags in the executor, or remove this field from the schema.
+
+In backend/app/core/scope_guard.py:
+
+> +        # httpx: check each target in the list
++        if tool_name == "run_httpx":
++            targets = arguments.get("targets", [])
++            return targets[0] if targets else None
+For run_httpx, extract_target_from_tool_call() returns only the first entry in the targets list. This means ScopeGuard validation can pass while later targets in the same tool call are out of scope. Scope validation needs to check every target in the list before allowing dispatch.
+
+In backend/app/api/engagements.py:
+
+> +    stmt = select(Engagement).where(Engagement.id == engagement_id)
++    res = await db.execute(stmt)
++    engagement = res.scalar_one_or_none()
+This query fetches engagements by id only. Without also filtering on Engagement.created_by == current_user.id, any authenticated user can retrieve another user's report content if they can guess/obtain the UUID.
+
+In backend/app/api/engagements.py:
+
+> +    stmt = select(Engagement).where(Engagement.id == engagement_id)
++    res = await db.execute(stmt)
++    engagement = res.scalar_one_or_none()
+Abort currently allows any authenticated user to abort any engagement by UUID. This should be restricted to the engagement creator (or an explicit admin role if/when RBAC is added).
+
+In backend/app/scanners/native.py:
+
+> +    # Resolve target IP for port scanning
++    try:
++        target_ip = socket.gethostbyname(domain)
++    except socket.gaierror:
++        target_ip = domain
+socket.gethostbyname() is a blocking call executed directly inside an async function. This can stall the event loop (especially on slow DNS) and violates the repo's 'no blocking calls inside async nodes' constraint. Prefer asyncio.get_running_loop().getaddrinfo() or run it in an executor.
+
+—
+Reply to this email directly, view it on GitHub, or unsubscribe.
+Triage notifications, keep track of coding agent tasks and review pull requests on the go with GitHub Mobile for iOS and Android. Download it today!
+You are receiving this because you authored the thread.

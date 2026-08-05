@@ -9,16 +9,39 @@ and api_key — no code changes in callers.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
+import openai
 from openai import AsyncOpenAI
 
 from app.config import settings
 from app.llm.models import GROQ_BASE_URL, get_model_for_role
 
 logger = logging.getLogger(__name__)
+
+_RATE_LIMIT_MAX_RETRIES = 5
+_RATE_LIMIT_DEFAULT_WAIT = 5.0
+_RATE_LIMIT_MESSAGE_RE = re.compile(r"try again in ([\d.]+)s", re.IGNORECASE)
+
+
+def _rate_limit_wait_seconds(exc: "openai.RateLimitError") -> float:
+    """Best-effort extraction of how long to wait before retrying a 429."""
+    response = getattr(exc, "response", None)
+    if response is not None:
+        header = response.headers.get("retry-after")
+        if header:
+            try:
+                return float(header)
+            except ValueError:
+                pass
+    match = _RATE_LIMIT_MESSAGE_RE.search(str(exc))
+    if match:
+        return float(match.group(1))
+    return _RATE_LIMIT_DEFAULT_WAIT
 
 
 @dataclass
@@ -67,6 +90,25 @@ class LLMClient:
     @property
     def usage(self) -> TokenUsage:
         return self._usage
+
+    async def _chat_completion_with_retry(self, kwargs: dict[str, Any]) -> Any:
+        """Call the chat completions endpoint, retrying on 429 with the
+        provider's suggested backoff instead of failing immediately.
+        """
+        for attempt in range(_RATE_LIMIT_MAX_RETRIES + 1):
+            try:
+                return await self._client.chat.completions.create(**kwargs)
+            except openai.RateLimitError as exc:
+                if attempt == _RATE_LIMIT_MAX_RETRIES:
+                    raise
+                wait_s = _rate_limit_wait_seconds(exc)
+                logger.warning(
+                    "Rate limited (attempt %d/%d) — waiting %.1fs before retrying.",
+                    attempt + 1,
+                    _RATE_LIMIT_MAX_RETRIES,
+                    wait_s,
+                )
+                await asyncio.sleep(wait_s)
 
     async def chat(
         self,
@@ -120,7 +162,7 @@ class LLMClient:
             )
 
         try:
-            completion = await self._client.chat.completions.create(**kwargs)
+            completion = await self._chat_completion_with_retry(kwargs)
         except Exception as exc:
             if "AuthenticationError" in type(exc).__name__ or "401" in str(exc):
                 logger.warning("LLM API authentication failed (%s) — returning fallback test response.", exc)

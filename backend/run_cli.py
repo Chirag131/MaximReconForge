@@ -116,6 +116,7 @@ async def run_assessment(target_domain: str, risky_enabled: bool = False) -> Non
     print(f" Scope Entries:      {len(final_state.get('scope_entries', []))}")
     print(f" Discovered Assets:  {len(final_state.get('assets', []))}")
     print(f" Findings Recorded:  {len(final_state.get('findings', []))}")
+    print(f" Total Tokens Used:  {final_state.get('token_usage', 0):,}")
 
     report_path = eng_dir / "report" / "final_report.md"
     if report_path.exists():

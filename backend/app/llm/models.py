@@ -26,7 +26,6 @@ def get_model_for_role(role: str, escalation: bool = False) -> str:
     """Return the model ID for a given Commander role.
 
     On Groq free tier, escalation uses the same model.
-    When switched to Anthropic, escalation maps to Opus 4.8.
     """
     if escalation and role == "exploitation":
         return ROLE_MODEL_MAP["exploitation_escalation"]
